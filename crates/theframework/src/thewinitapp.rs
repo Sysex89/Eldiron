@@ -348,13 +348,21 @@ impl TheWinitApp {
             // magnified with a nearest neighbor blit, which only looks right at integer
             // factors, but falling back to 1.0 leaves the UI at native pixel size on the
             // fractional scales HiDPI desktops actually use (1.25, 1.5, 2.25).
+            // Cap the magnification so the app's minimum layout always fits the buffer.
             #[cfg(all(not(target_os = "macos"), not(target_arch = "wasm32")))]
             let (effective_scale, width, height) = {
-                let snapped = scale_factor.round().max(1.0);
+                let (min_width, min_height) = self.app.min_window_size();
+                let fits = (size.width as f32 / min_width as f32)
+                    .min(size.height as f32 / min_height as f32)
+                    .floor();
+                let snapped = scale_factor.round().min(fits).max(1.0);
+                // Floor the buffer dimensions: the pixels backend floors the
+                // surface/buffer ratio, so a buffer even one pixel too large
+                // drops the displayed scale to snapped - 1 and letterboxes.
                 (
                     snapped,
-                    (size.width as f32 / snapped).round() as u32,
-                    (size.height as f32 / snapped).round() as u32,
+                    (size.width as f32 / snapped).floor() as u32,
+                    (size.height as f32 / snapped).floor() as u32,
                 )
             };
             // macOS and WASM: keep logical sizing based on scale_factor
